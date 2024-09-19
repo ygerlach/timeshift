@@ -48,6 +48,7 @@ class SnapshotListBox : Gtk.Box{
 	private Gtk.MenuItem mi_browse;
 	private Gtk.MenuItem mi_view_log_create;
 	private Gtk.MenuItem mi_view_log_restore;
+	private Gtk.MenuItem mi_duplicate;
 	private Gtk.MenuItem mi_remove;
 	private Gtk.MenuItem mi_mark;
 	
@@ -57,6 +58,7 @@ class SnapshotListBox : Gtk.Box{
 	public signal void mark_selected();
 	public signal void browse_selected();
 	public signal void view_snapshot_log(bool show_restore_log);
+	public signal void duplicate_selected();
 
 	public SnapshotListBox (Gtk.Window _parent_window) {
 
@@ -342,6 +344,11 @@ class SnapshotListBox : Gtk.Box{
 		menu_item->activate.connect(() => { view_snapshot_log(true); });
 		menu_snapshots.append(menu_item);
 		mi_view_log_restore = menu_item;
+
+		menu_item = create_menu_entry(_("Duplicate"), "edit-copy");
+		menu_item->activate.connect(() => { duplicate_selected(); });
+		menu_snapshots.append(menu_item);
+		mi_duplicate = menu_item;
 
 		menu_item = create_menu_entry(_("Delete"), "edit-delete");
 		menu_item->activate.connect(() => { delete_selected(); });
