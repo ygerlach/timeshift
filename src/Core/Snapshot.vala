@@ -51,7 +51,7 @@ public class Snapshot : GLib.Object{
 	public bool marked_for_deletion = false;
 	public LinuxDistro distro;
 	public SnapshotRepo repo;
-	
+
 	//btrfs
 	public bool btrfs_mode = false;
 	public Gee.HashMap<string,string> paths; // for btrfs snapshots only
@@ -158,7 +158,7 @@ public class Snapshot : GLib.Object{
 		owned get{
 			string str = "";
 			foreach(string tag in tags){
-				str += " " + tag.replace("ondemand","O").replace("boot","B").replace("hourly","H").replace("daily","D").replace("weekly","W").replace("monthly","M");
+				str += " " + tag.replace("ondemand","O").replace("boot","B").replace("hourly","H").replace("daily","D").replace("weekly","W").replace("monthly","M").replace("duplicated", "C");
 			}
 			return str.strip();
 		}
@@ -394,9 +394,9 @@ public class Snapshot : GLib.Object{
 	}
 	
 	public static Snapshot write_control_file(
-		string snapshot_path, DateTime dt_created, string root_uuid, string distro_full_name, 
+		string snapshot_path, DateTime dt_created, string root_uuid, string distro_full_name,
 		string tag, string comments, int64 item_count, bool is_btrfs, bool is_live, SnapshotRepo repo, bool silent = false){
-			
+
 		var ctl_path = snapshot_path + "/info.json";
 		var config = new Json.Object();
 
@@ -436,7 +436,7 @@ public class Snapshot : GLib.Object{
 	}
 
 	// check
-	
+
 	public bool has_subvolumes(){
 		foreach(FsTabEntry en in fstab_list){
 			if (en.options.contains("subvol=@")){
@@ -478,6 +478,39 @@ public class Snapshot : GLib.Object{
 
 		return status;
 	}
+
+	public bool duplicate() {
+		if(!btrfs_mode) {
+			// not supported
+			return false;
+		}
+
+		DateTime now = new DateTime.now_local();
+		string newName = now.format("%Y-%m-%d_%H-%M-%S");
+
+		File f = File.new_for_path(path);
+		File? parent = f.get_parent();
+		if(null == parent) {
+			return false;
+		}
+
+		string parentPath = parent.get_path();
+		string dupPath = "%s/%s".printf(parentPath, newName);
+
+		if(!dir_create(dupPath, false)) {
+			return false;
+		}
+
+		foreach(Subvolume sub in subvolumes.values) {
+			sub.duplicate(dupPath);
+		}
+
+		Snapshot.write_control_file(
+			dupPath, now, sys_uuid, sys_distro,
+			"ondemand duplicated", _("Copy of") + " " + date_formatted, file_count, true, false, repo);
+
+		return true;
+	}
 	
 	public bool remove_rsync(bool wait){
 
@@ -508,7 +541,7 @@ public class Snapshot : GLib.Object{
 			stdout.printf(string.nfill(80, ' ') + "\r");
 			stdout.flush();
 
-			message = "%s '%s'".printf(_("Removed"), name);	
+			message = "%s '%s'".printf(_("Removed"), name);
 			log_msg(message);
 			log_msg(string.nfill(78, '-'));
 		}

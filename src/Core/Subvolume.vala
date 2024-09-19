@@ -249,7 +249,24 @@ public class Subvolume : GLib.Object{
 		}
 
 		log_msg(_("Restored system subvolume") + ": %s".printf(name));
-		
+
+		return true;
+	}
+
+	public bool duplicate(string targetPath) {
+		string cmd = "btrfs subvolume snapshot '%s' '%s'".printf(path, targetPath);
+		log_debug(cmd);
+
+		string std_out, std_err;
+		int status = exec_sync(cmd, out std_out, out std_err);
+
+		if (status != 0){
+			log_error(std_err);
+			log_error(_("btrfs returned an error") + ": %d".printf(status));
+			log_error(_("Failed to duplicate subvolume") + ": %s".printf(name));
+			return false;
+		}
+
 		return true;
 	}
 }
