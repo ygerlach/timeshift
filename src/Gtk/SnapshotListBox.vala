@@ -45,11 +45,11 @@ class SnapshotListBox : Gtk.Box{
 	private bool treeview_sort_column_desc = true;
 
 	private Gtk.Menu menu_snapshots;
-	private Gtk.ImageMenuItem mi_browse;
-	private Gtk.ImageMenuItem mi_remove;
-	private Gtk.ImageMenuItem mi_mark;
-	private Gtk.ImageMenuItem mi_view_log_create;
-	private Gtk.ImageMenuItem mi_view_log_restore;
+	private Gtk.MenuItem mi_browse;
+	private Gtk.MenuItem mi_view_log_create;
+	private Gtk.MenuItem mi_view_log_restore;
+	private Gtk.MenuItem mi_remove;
+	private Gtk.MenuItem mi_mark;
 	
 	private Gtk.Window parent_window;
 
@@ -309,62 +309,63 @@ class SnapshotListBox : Gtk.Box{
 		});
 	}
 
+	private static Gtk.MenuItem* create_menu_entry(string text, string iconName) {
+		Gtk.Box* box = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 6);
+		Gtk.Image* icon = new Gtk.Image.from_icon_name( iconName, Gtk.IconSize.MENU);
+		Gtk.Label* label = new Gtk.Label(text);
+		Gtk.MenuItem* menu_item = new Gtk.MenuItem();
+		box->add(icon);
+		box->add(label);
+		box->pack_end(label, true, true, 0);
+		menu_item->add(box);
+		return menu_item;
+	}
+
 	private void init_list_view_context_menu(){
-		
+
 		Gdk.RGBA gray = Gdk.RGBA();
 		gray.parse ("rgba(200,200,200,1)");
 
 		// menu_file
 		menu_snapshots = new Gtk.Menu();
-		
-		// mi_browse
-		var item = new ImageMenuItem.with_label(_("Browse Files"));
-        item.image = IconManager.lookup_image(IconManager.GENERIC_ICON_DIRECTORY, 16);
-		item.activate.connect(()=> { browse_selected(); });
-		menu_snapshots.append(item);
-		mi_browse = item;
-		
-		// mi_view_log_create
-		item = new ImageMenuItem.with_label(_("View Rsync Log for Create"));
-        item.image = IconManager.lookup_image(IconManager.GENERIC_ICON_FILE, 16);
-		item.activate.connect(()=> { view_snapshot_log(false); });
-		menu_snapshots.append(item);
-		mi_view_log_create = item;
-		
-		// mi_view_log_restore
-		item = new ImageMenuItem.with_label(_("View Rsync Log for Restore"));
-        item.image = IconManager.lookup_image(IconManager.GENERIC_ICON_FILE, 16);
-		item.activate.connect(()=> { view_snapshot_log(true); });
-		menu_snapshots.append(item);
-		mi_view_log_restore = item;
 
-		// mi_remove
-		item = new ImageMenuItem.with_label(_("Delete"));
-		item.image = IconManager.lookup_image("edit-delete", 16);
-		item.activate.connect(()=> { delete_selected(); });
-		menu_snapshots.append(item);
-		mi_remove = item;
-		
-		// mi_mark
-		item = new ImageMenuItem.with_label(_("Mark/Unmark for Deletion"));
-		item.image = IconManager.lookup_image("edit-delete", 16);
-		item.activate.connect(()=> { mark_selected(); });
-		menu_snapshots.append(item);
-		mi_mark = item;
-		
+		Gtk.MenuItem* menu_item = create_menu_entry(_("Browse Files"), IconManager.GENERIC_ICON_DIRECTORY);
+		menu_item->activate.connect(() => { browse_selected(); });
+		menu_snapshots.append(menu_item);
+
+		menu_item = create_menu_entry(_("View Rsync Log for Create"), IconManager.GENERIC_ICON_FILE);
+		menu_item->activate.connect(() => { view_snapshot_log(false); });
+		menu_snapshots.append(menu_item);
+		mi_view_log_create = menu_item;
+
+		menu_item = create_menu_entry(_("View Rsync Log for Restore"), IconManager.GENERIC_ICON_FILE);
+		menu_item->activate.connect(() => { view_snapshot_log(true); });
+		menu_snapshots.append(menu_item);
+		mi_view_log_restore = menu_item;
+
+		menu_item = create_menu_entry(_("Delete"), "edit-delete");
+		menu_item->activate.connect(() => { delete_selected(); });
+		menu_snapshots.append(menu_item);
+		mi_remove = menu_item;
+
+		menu_item = create_menu_entry(_("Mark/Unmark for Deletion"), "edit-delete");
+		menu_item->activate.connect(() => { mark_selected(); });
+		menu_snapshots.append(menu_item);
+		mi_mark = menu_item;
+
 		menu_snapshots.show_all();
 
 		// connect signal for shift+F10
         treeview.popup_menu.connect(treeview_popup_menu);
-        
+
         // connect signal for right-click
 		treeview.button_press_event.connect(treeview_button_press_event);
 	}
 
 	// signals
-	
+
 	private bool treeview_popup_menu(){
-		
+
 		return menu_snapshots_popup (menu_snapshots, null);
 	}
 
