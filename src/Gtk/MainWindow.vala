@@ -227,7 +227,9 @@ class MainWindow : Gtk.Window{
 		snapshot_list_box.browse_selected.connect(browse_selected);
 
 		snapshot_list_box.view_snapshot_log.connect(view_snapshot_log);
-    }
+
+		snapshot_list_box.duplicate_selected.connect(duplicate_selected);
+	}
 
 	private void init_ui_statusbar(){
 
@@ -522,7 +524,7 @@ class MainWindow : Gtk.Window{
 	public void delete_selected(){
 
 		log_debug("main window: delete_selected()");
-		
+
 		// check snapshot device -----------
 
 		if (!App.repo.available()){
@@ -599,6 +601,16 @@ class MainWindow : Gtk.Window{
 			refresh_all();
 			ui_sensitive(true);
 		});
+	}
+
+	public void duplicate_selected() {
+		log_debug("main window: duplicate_selected()");
+	
+		foreach (Snapshot item in snapshot_list_box.selected_snapshots()) {
+			item.duplicate();
+		}
+
+		refresh_all();
 	}
 
 	public void mark_selected(){
