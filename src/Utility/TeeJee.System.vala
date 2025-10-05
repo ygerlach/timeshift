@@ -143,18 +143,27 @@ namespace TeeJee.System{
 
 	// open -----------------------------
 
-	public bool xdg_open (string file, string user = ""){
-		string path = get_cmd_path ("xdg-open");
-		if ((path != null) && (path != "")){
-			string cmd = "xdg-open '%s'".printf(escape_single_quote(file));
-			if (user.length > 0){
-				cmd = "pkexec --user %s env DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY ".printf(user) + cmd;
-			}
-			log_debug(cmd);
-			int status = exec_script_async(cmd);
-			return (status == 0);
+	public bool xdg_open (string file){
+		string path = get_cmd_path("xdg-open");
+		if ((path == null) || (path == "")) {
+			return false;
 		}
-		return false;
+
+		string cmd = "xdg-open '%s'".printf(escape_single_quote(file));
+
+		// find correct user
+		int uid = get_user_id();
+		if(uid > 0) {
+			// non root
+			string? user = get_username_from_uid(uid);
+			if(user != null) {
+				cmd = "pkexec --user %s env DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%i/bus ".printf(user, uid) + cmd;
+			}
+		}
+
+		log_debug(cmd);
+		int status = exec_script_async(cmd);
+		return (status == 0);
 	}
 
 	public bool exo_open_folder (string dir_path, bool xdg_open_try_first = true){
