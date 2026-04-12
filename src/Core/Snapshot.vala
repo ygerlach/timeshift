@@ -188,103 +188,95 @@ public class Snapshot : GLib.Object{
 	// control files
 	
 	public void read_control_file(){
-		
-		//log_debug("read_control_file()");
-		
 		string ctl_file = path + "/info.json";
 
-		var f = File.new_for_path(ctl_file);
+		var parser = new Json.Parser();
 		
-		if (f.query_exists()) {
-			
-			var parser = new Json.Parser();
-			
-			try{
-				parser.load_from_file(ctl_file);
-			} catch (Error e) {
+		try{
+			parser.load_from_file(ctl_file);
+		} catch (Error e) {
+			if(e.code != FileError.NOENT)
 				log_error (e.message);
-			}
-			
-			var node = parser.get_root();
-			var config = node.get_object();
+			valid = false;
+			return;
+		}
+		
+		Json.Node? node = parser.get_root();
+		Json.Object? config = node?.get_object();
 
-			if ((node == null)||(config == null)){
-				valid = false;
-				return;
-			}
+		if ((node == null)||(config == null)){
+			valid = false;
+			return;
+		}
 
-			string val = json_get_string(config,"created","");
-			if (val.length > 0) {
-				DateTime date_utc = new DateTime.from_unix_utc(int64.parse(val));
-				date = date_utc.to_local();
-			}
+		string val = json_get_string(config,"created","");
+		if (val.length > 0) {
+			DateTime date_utc = new DateTime.from_unix_utc(int64.parse(val));
+			date = date_utc.to_local();
+		}
 
-			sys_uuid = json_get_string(config,"sys-uuid","");
-			sys_distro = json_get_string(config,"sys-distro","");
-			taglist = json_get_string(config,"tags","");
-			description = json_get_string(config,"comments","");
-			app_version = json_get_string(config,"app-version","");
-			file_count = (int64) json_get_uint64(config,"file_count",file_count);
-			live = json_get_bool(config,"live",false);
-			string type = config.get_string_member_with_default("type", "rsync");
+		sys_uuid = json_get_string(config,"sys-uuid","");
+		sys_distro = json_get_string(config,"sys-distro","");
+		taglist = json_get_string(config,"tags","");
+		description = json_get_string(config,"comments","");
+		app_version = json_get_string(config,"app-version","");
+		file_count = (int64) json_get_uint64(config,"file_count",file_count);
+		live = json_get_bool(config,"live",false);
+		string type = config.get_string_member_with_default("type", "rsync");
 
-			string extension = (type == "btrfs") ? "@" : "localhost";
-			distro = LinuxDistro.get_dist_info(path_combine(path, extension));
+		string extension = (type == "btrfs") ? "@" : "localhost";
+		distro = LinuxDistro.get_dist_info(path_combine(path, extension));
 
-			//log_debug("repo.mount_path: %s".printf(repo.mount_path));
+		//log_debug("repo.mount_path: %s".printf(repo.mount_path));
 
-			if (config.has_member("subvolumes")){
+		if (config.has_member("subvolumes")){
 
-				var subvols = (Json.Object) config.get_object_member("subvolumes");
+			var subvols = (Json.Object) config.get_object_member("subvolumes");
 
-				foreach(string subvol_name in subvols.get_members()){
+			foreach(string subvol_name in subvols.get_members()){
+				
+				if ((subvol_name != "@")&&(subvol_name != "@home")){ continue; }
+				
+				paths[subvol_name] = path.replace(repo.mount_path, repo.mount_paths[subvol_name]);
+				
+				var subvol_path = path_combine(paths[subvol_name], subvol_name);
+				
+				if (!dir_exists(subvol_path)){ continue; }
+
+				//log_debug("subvol_path: %s".printf(subvol_path));
+				
+				var subvolume = new Subvolume(subvol_name, subvol_path, "", repo); //subvolumes.get(subvol_name);
+				subvolumes.set(subvol_name, subvolume);
+				
+				int index = -1;
+				
+				foreach(Json.Node jnode in subvols.get_array_member(subvol_name).get_elements()) {
 					
-					if ((subvol_name != "@")&&(subvol_name != "@home")){ continue; }
-					
-					paths[subvol_name] = path.replace(repo.mount_path, repo.mount_paths[subvol_name]);
-					
-					var subvol_path = path_combine(paths[subvol_name], subvol_name);
-					
-					if (!dir_exists(subvol_path)){ continue; }
-
-					//log_debug("subvol_path: %s".printf(subvol_path));
-					
-					var subvolume = new Subvolume(subvol_name, subvol_path, "", repo); //subvolumes.get(subvol_name);
-					subvolumes.set(subvol_name, subvolume);
-					
-					int index = -1;
-					
-					foreach(Json.Node jnode in subvols.get_array_member(subvol_name).get_elements()) {
-						
-						string item = jnode.get_string();
-						switch (++index){
-							case 0:
-								subvolume.name = item;
-								break;
-							case 1:
-								subvolume.id = long.parse(item);
-								break;
-							case 2:
-								subvolume.total_bytes = int64.parse(item);
-								break;
-							case 3:
-								subvolume.unshared_bytes = int64.parse(item);
-								break;
-							case 4:
-								subvolume.device_uuid = item.strip();
-								break;
-						}
+					string item = jnode.get_string();
+					switch (++index){
+						case 0:
+							subvolume.name = item;
+							break;
+						case 1:
+							subvolume.id = long.parse(item);
+							break;
+						case 2:
+							subvolume.total_bytes = int64.parse(item);
+							break;
+						case 3:
+							subvolume.unshared_bytes = int64.parse(item);
+							break;
+						case 4:
+							subvolume.device_uuid = item.strip();
+							break;
 					}
 				}
 			}
-			
-			string delete_trigger_file = path + "/delete";
-			if (file_exists(delete_trigger_file)){
-				marked_for_deletion = true;
-			}
 		}
-		else{
-			valid = false;
+		
+		string delete_trigger_file = path + "/delete";
+		if (file_exists(delete_trigger_file)){
+			marked_for_deletion = true;
 		}
 		
 		//log_debug("read_control_file(): exit");
@@ -345,52 +337,53 @@ public class Snapshot : GLib.Object{
 			string ctl_file = path + "/info.json";
 			var f = File.new_for_path(ctl_file);
 
-			if (f.query_exists()) {
-
-				var parser = new Json.Parser();
-				try{
-					parser.load_from_file(ctl_file);
-				} catch (Error e) {
+			var parser = new Json.Parser();
+			try{
+				parser.load_from_file(ctl_file);
+			} catch (Error e) {
+				if(e.code != FileError.NOENT) {
 					log_error (e.message);
+					return;
 				}
-				var node = parser.get_root();
-				var config = node.get_object();
-
-				config.set_string_member("tags", taglist);
-				config.set_string_member("comments", description);
-				config.set_string_member("live", live.to_string());
-
-				if (btrfs_mode){
-					var subvols = new Json.Object();
-					config.set_object_member("subvolumes",subvols);
-					foreach(var subvol in subvolumes.values){
-						Json.Array arr = new Json.Array();
-						arr.add_string_element(subvol.name);
-						arr.add_string_element(subvol.id.to_string());
-						arr.add_string_element(subvol.total_bytes.to_string());
-						arr.add_string_element(subvol.unshared_bytes.to_string());
-						arr.add_string_element(subvol.device_uuid);
-						subvols.set_array_member(subvol.name,arr);
-					}
-				}
-				
-				var json = new Json.Generator();
-				json.pretty = true;
-				json.indent = 2;
-				node.set_object(config);
-				json.set_root(node);
-				f.delete();
-				json.to_file(ctl_file);
 			}
+			Json.Node? node = parser.get_root();
+			Json.Object? config = node?.get_object();
+
+			if(config == null) {
+				config = new Json.Object();
+			}
+
+			config.set_string_member("tags", taglist);
+			config.set_string_member("comments", description);
+			config.set_string_member("live", live.to_string());
+
+			if (btrfs_mode){
+				var subvols = new Json.Object();
+				config.set_object_member("subvolumes",subvols);
+				foreach(var subvol in subvolumes.values){
+					Json.Array arr = new Json.Array();
+					arr.add_string_element(subvol.name);
+					arr.add_string_element(subvol.id.to_string());
+					arr.add_string_element(subvol.total_bytes.to_string());
+					arr.add_string_element(subvol.unshared_bytes.to_string());
+					arr.add_string_element(subvol.device_uuid);
+					subvols.set_array_member(subvol.name,arr);
+				}
+			}
+			
+			Json.Generator json = new Json.Generator();
+			json.pretty = true;
+			json.indent = 2;
+			node.set_object(config);
+			json.set_root(node);
+
+			// save to a new file, then overwrite original with move to avoid corupption
+			File newFile = File.new_for_path(ctl_file + ".new");
+			json.to_file(newFile.get_path());
+			newFile.move(f, GLib.FileCopyFlags.OVERWRITE);
 		} catch (Error e) {
 			log_error (e.message);
 		}
-	}
-
-	public void remove_control_file(){
-		
-		string ctl_file = path + "/info.json";
-		file_delete(ctl_file);
 	}
 	
 	public static Snapshot write_control_file(
